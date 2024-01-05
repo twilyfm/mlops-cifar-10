@@ -4,7 +4,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
-
+import onnxruntime
 from train import BasicNet
 
 def get_cifar10_data(batch_size):
@@ -25,22 +25,25 @@ def get_cifar10_data(batch_size):
     return test_loader
 
 
-def test_model(model, test_loader):
+def test_model(onnx_session, test_loader):
     test_pred = []
 
     for data, target in test_loader:
-        with torch.no_grad():
-            logits = model(data)
-            test_pred.extend(logits.argmax(dim=1))
+        ort_inputs = {onnx_session.get_inputs()[0].name: to_numpy(data)}
+        ort_outs = onnx_session.run(None, ort_inputs)
+        test_pred.extend(torch.Tensor(ort_outs[0]).argmax(dim=1))
 
     return np.array(test_pred)
 
+def to_numpy(tensor):
+    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
 def main():
-    model = torch.load('output/cnn_model.pt')
-    model.eval()
-    test_loader = get_cifar10_data(64)
-    test_pred = test_model(model, test_loader)
+    onnx_session = onnxruntime.InferenceSession("output/cnn_classifier.onnx", providers=["CPUExecutionProvider"])
+    test_loader = get_cifar10_data(1)
+
+
+    test_pred = test_model(onnx_session, test_loader)
 
     np.savetxt("output/test_prediction.csv",
                test_pred,

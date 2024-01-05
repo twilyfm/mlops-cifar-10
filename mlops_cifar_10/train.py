@@ -137,8 +137,15 @@ def main():
                                                                      1,
                                                                      train_loader,
                                                                      val_loader)
+    torch_input = torch.randn(1, 3, 32, 32)
+    torch.onnx.export(net,
+                      torch_input,
+                      "output/cnn_classifier.onnx",
+                      export_params=True,
+                      do_constant_folding=True)
 
-    torch.save(net, 'output/cnn_model.pt')
+
+    # torch.save(net, 'output/cnn_model.pt')
 
 if __name__ == '__main__':
     main()
