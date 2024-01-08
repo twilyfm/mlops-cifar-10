@@ -3,9 +3,12 @@ import onnxruntime
 import torch
 import torchvision
 import torchvision.transforms as transforms
+from dvc.api import DVCFileSystem
 
 
 def get_cifar10_data(batch_size):
+    DVCFileSystem().get("data", "data", recursive=True)
+
     transform = transforms.Compose(
         [
             transforms.ToTensor(),

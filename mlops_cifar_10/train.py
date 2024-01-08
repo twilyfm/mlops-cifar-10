@@ -4,12 +4,15 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
+from dvc.api import DVCFileSystem
 from sklearn.model_selection import train_test_split
 
 
 def get_cifar10_data(batch_size):
     torch.manual_seed(0)
     np.random.seed(0)
+
+    DVCFileSystem().get("data", "data", recursive=True)
 
     transform = transforms.Compose(
         [
