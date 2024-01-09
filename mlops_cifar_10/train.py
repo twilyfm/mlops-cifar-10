@@ -15,7 +15,7 @@ from omegaconf import DictConfig, OmegaConf
 from sklearn.model_selection import train_test_split
 
 
-def get_cifar10_data(batch_size):
+def get_cifar10_data(batch_size, path_lvl):
     torch.manual_seed(0)
     np.random.seed(0)
 
@@ -28,7 +28,7 @@ def get_cifar10_data(batch_size):
 
     # load data
     trainvalset = torchvision.datasets.CIFAR10(
-        root="../data", train=True, download=False, transform=transform
+        root=f"{path_lvl}data", train=True, download=False, transform=transform
     )
 
     # split data for train and validation
@@ -211,7 +211,7 @@ def main(cfg: DictConfig) -> None:
 
     # get data
     train_loader, val_loader = get_cifar10_data(
-        batch_size=cfg.data_loader.train_batch_size
+        batch_size=cfg.data_loader.train_batch_size, path_lvl=path_lvl
     )
 
     net = BasicNet()

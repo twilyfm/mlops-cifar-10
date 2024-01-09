@@ -1,3 +1,5 @@
+import pathlib
+
 import hydra
 import numpy as np
 import onnxruntime
@@ -7,7 +9,7 @@ import torchvision.transforms as transforms
 from omegaconf import DictConfig, OmegaConf
 
 
-def get_cifar10_data(batch_size):
+def get_cifar10_data(batch_size, path_lvl):
     transform = transforms.Compose(
         [
             transforms.ToTensor(),
@@ -17,7 +19,10 @@ def get_cifar10_data(batch_size):
 
     # load data
     test_set = torchvision.datasets.CIFAR10(
-        root="../data", train=False, download=False, transform=transform
+        root=f"{path_lvl}data",
+        train=False,
+        download=False,
+        transform=transform,
     )
 
     test_loader = torch.utils.data.DataLoader(
@@ -50,19 +55,30 @@ def to_numpy(tensor):
 def main(cfg: DictConfig):
     OmegaConf.to_yaml(cfg)
 
+    if str(pathlib.Path().absolute())[-14:] == "mlops-cifar-10":
+        path_lvl = "./"
+    else:
+        path_lvl = "../"
+
     # get data
-    test_loader = get_cifar10_data(cfg.data_loader.test_batch_size)
+    test_loader = get_cifar10_data(
+        batch_size=cfg.data_loader.test_batch_size, path_lvl=path_lvl
+    )
 
     # get model
     onnx_session = onnxruntime.InferenceSession(
-        "../output/cnn_classifier.onnx", providers=["CPUExecutionProvider"]
+        f"{path_lvl}output/cnn_classifier.onnx",
+        providers=["CPUExecutionProvider"],
     )
 
     # make prediction and save it
     test_pred = test_model(onnx_session, test_loader)
 
     np.savetxt(
-        "../output/test_prediction.csv", test_pred, delimiter=", ", fmt="% s"
+        f"{path_lvl}output/test_prediction.csv",
+        test_pred,
+        delimiter=", ",
+        fmt="% s",
     )
 
 
