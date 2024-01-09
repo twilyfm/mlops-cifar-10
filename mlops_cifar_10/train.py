@@ -1,3 +1,9 @@
+import os
+import pathlib
+
+import git
+import hydra
+import mlflow
 import numpy as np
 import torch
 import torch.nn as nn
@@ -5,14 +11,13 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 from dvc.api import DVCFileSystem
+from omegaconf import DictConfig, OmegaConf
 from sklearn.model_selection import train_test_split
 
 
 def get_cifar10_data(batch_size):
     torch.manual_seed(0)
     np.random.seed(0)
-
-    DVCFileSystem().get("data", "data", recursive=True)
 
     transform = transforms.Compose(
         [
@@ -23,7 +28,7 @@ def get_cifar10_data(batch_size):
 
     # load data
     trainvalset = torchvision.datasets.CIFAR10(
-        root="./data", train=True, download=False, transform=transform
+        root="../data", train=True, download=False, transform=transform
     )
 
     # split data for train and validation
@@ -46,9 +51,6 @@ def get_cifar10_data(batch_size):
     )
 
     return train_loader, val_loader
-
-
-train_loader, val_loader = get_cifar10_data(batch_size=64)
 
 
 # CNN architecture
@@ -157,12 +159,19 @@ def train(
         val_loss_log.append(val_loss)
         val_acc_log.append(val_acc)
 
+        # Log the loss metric
+        mlflow.log_metric("Train loss", np.mean(train_loss))
+        mlflow.log_metric("Train accuracy", np.mean(train_acc))
+
+        mlflow.log_metric("Test loss", val_loss)
+        mlflow.log_metric("Test accuracy", val_acc)
+
         print(f"Epoch {epoch}")
         print(
             f"train loss: {np.mean(train_loss)}",
             f"train acc: {np.mean(train_acc)}",
         )
-        print(f" val loss: {val_loss}, val acc: {val_acc}\n")
+        print(f"val loss: {val_loss}, val acc: {val_acc}\n")
 
         if scheduler is not None:
             scheduler.step()
@@ -170,23 +179,59 @@ def train(
     return train_loss_log, train_acc_log, val_loss_log, val_acc_log
 
 
-def main():
-    net = BasicNet()
-    optimizer = optim.Adam(net.parameters(), lr=3e-3)
+@hydra.main(version_base=None, config_path="../conf", config_name="config")
+def main(cfg: DictConfig) -> None:
+    OmegaConf.to_yaml(cfg)
 
-    train_loss_log, train_acc_log, val_loss_log, val_acc_log = train(
-        net, optimizer, 1, train_loader, val_loader
+    if str(pathlib.Path().absolute())[-14:] == "mlops-cifar-10":
+        path_lvl = "./"
+    else:
+        path_lvl = "../"
+
+    DVCFileSystem().get(f"{path_lvl}data", f"{path_lvl}data", recursive=True)
+
+    mlflow.set_tracking_uri(uri="http://128.0.1.1:8080")
+    mlflow.set_experiment("CNN training with cifar-10")
+
+    # train hyperparameters
+    params = {
+        "lr": cfg.training_params.lr,
+        "epoch_num": cfg.training_params.epoch_num,
+        "optimizer": "Adam",
+    }
+
+    mlflow.log_params(params)
+
+    repo = git.Repo(search_parent_directories=True)
+    sha = repo.head.object.hexsha
+
+    mlflow.log_params({"git commit id": sha})
+
+    print("Preparing data\n")
+
+    # get data
+    train_loader, val_loader = get_cifar10_data(
+        batch_size=cfg.data_loader.train_batch_size
     )
+
+    net = BasicNet()
+    optimizer = optim.Adam(net.parameters(), lr=cfg.training_params.lr)
+
+    train(
+        net, optimizer, cfg.training_params.epoch_num, train_loader, val_loader
+    )
+
+    os.mkdir(f"{path_lvl}output")
+
+    # save trained model
     torch_input = torch.randn(1, 3, 32, 32)
     torch.onnx.export(
         net,
         torch_input,
-        "output/cnn_classifier.onnx",
+        f"{path_lvl}output/cnn_classifier.onnx",
         export_params=True,
         do_constant_folding=True,
     )
-
-    # torch.save(net, 'output/cnn_model.pt')
 
 
 if __name__ == "__main__":

@@ -162,3 +162,7 @@ cython_debug/
 output/
 data/
 /data
+
+mlruns/
+mlops_cifar_10/outputs/
+outputs/

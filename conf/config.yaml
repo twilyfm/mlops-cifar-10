@@ -1,0 +1,14 @@
+defaults:
+  - _self_
+
+dataset:
+  name: "cifar-10"
+  path: "data"
+
+training_params:
+  lr: 3e-3
+  epoch_num: 4
+
+data_loader:
+  train_batch_size: 64
+  test_batch_size: 1

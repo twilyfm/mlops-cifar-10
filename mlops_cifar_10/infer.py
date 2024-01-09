@@ -1,14 +1,13 @@
+import hydra
 import numpy as np
 import onnxruntime
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from dvc.api import DVCFileSystem
+from omegaconf import DictConfig, OmegaConf
 
 
 def get_cifar10_data(batch_size):
-    DVCFileSystem().get("data", "data", recursive=True)
-
     transform = transforms.Compose(
         [
             transforms.ToTensor(),
@@ -18,7 +17,7 @@ def get_cifar10_data(batch_size):
 
     # load data
     test_set = torchvision.datasets.CIFAR10(
-        root="./data", train=False, download=False, transform=transform
+        root="../data", train=False, download=False, transform=transform
     )
 
     test_loader = torch.utils.data.DataLoader(
@@ -47,16 +46,23 @@ def to_numpy(tensor):
     )
 
 
-def main():
-    onnx_session = onnxruntime.InferenceSession(
-        "output/cnn_classifier.onnx", providers=["CPUExecutionProvider"]
-    )
-    test_loader = get_cifar10_data(1)
+@hydra.main(version_base=None, config_path="../conf", config_name="config")
+def main(cfg: DictConfig):
+    OmegaConf.to_yaml(cfg)
 
+    # get data
+    test_loader = get_cifar10_data(cfg.data_loader.test_batch_size)
+
+    # get model
+    onnx_session = onnxruntime.InferenceSession(
+        "../output/cnn_classifier.onnx", providers=["CPUExecutionProvider"]
+    )
+
+    # make prediction and save it
     test_pred = test_model(onnx_session, test_loader)
 
     np.savetxt(
-        "output/test_prediction.csv", test_pred, delimiter=", ", fmt="% s"
+        "../output/test_prediction.csv", test_pred, delimiter=", ", fmt="% s"
     )
 
 
